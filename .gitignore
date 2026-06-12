@@ -1,0 +1,65 @@
+# -------------------------------------------------------------------
+# Docker & Compose
+# -------------------------------------------------------------------
+docker-compose.override.yml
+docker-compose.override.*.yml
+.docker/
+tmp/
+logs/
+
+# -------------------------------------------------------------------
+# Pi-hole configs (container-generated)
+# -------------------------------------------------------------------
+etc-pihole/config_backups/
+etc-pihole/dnsmasq.conf
+etc-pihole/gravity.db
+etc-pihole/pihole-FTL.db
+etc-pihole/pihole.toml
+
+# -------------------------------------------------------------------
+# Portainer data (should live in a volume, not Git)
+# -------------------------------------------------------------------
+portainer_data/
+
+# -------------------------------------------------------------------
+# OS / Editor noise
+# -------------------------------------------------------------------
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.cache/
+.trash/
+
+# -------------------------------------------------------------------
+# Logs & Runtime files
+# -------------------------------------------------------------------
+*.log
+*.out
+*.err
+*.pid
+nohup.out
+
+# -------------------------------------------------------------------
+# IDE / Editors
+# -------------------------------------------------------------------
+.vscode/
+.idea/
+*.iml
+
+
+vscode/
+
+immich/library/
+immich/postgres/
+testing_tasty/tastyigniter/db/aria_log_control
+testing_tasty/tastyigniter/db/aria_log.00000001
+testing_tasty/tastyigniter/db/ib_buffer_pool
+testing_tasty/tastyigniter/db/ib_logfile0
+testing_tasty/tastyigniter/db/ibdata1
+testing_tasty/tastyigniter/db/ibtmp1
+testing_tasty/tastyigniter/db/multi-master.info
+testing_tasty/tastyigniter/db/mysql_upgrade_info
+
+.env
