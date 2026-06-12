@@ -31,7 +31,7 @@ Create/update `.env` in the project root:
 DOCKER_VOLUMES_ROOT=/home/docker-volume
 
 # Internal path used by the init container
-DOCKER_VOLUMES_CONTAINER_PATH=/host/docker-volume
+DOCKER_VOLUMES_ROOT=/host/docker-volume
 
 # Shared
 TIMEZONE=Asia/Kolkata

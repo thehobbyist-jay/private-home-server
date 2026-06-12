@@ -1,5 +1,5 @@
 # docker-compose.yml
-name: jay-home-base
+name: private-home-server
 services:
   volumes-init-core:
     image: alpine:3.20
@@ -8,7 +8,7 @@ services:
       - /bin/sh
       - -ec
       - |
-        ROOT="$${DOCKER_VOLUMES_CONTAINER_PATH:-/host/docker-volume}"
+        ROOT="$${DOCKER_VOLUMES_ROOT:-/host/docker-volume}"
         mkdir -p \
           "$${ROOT}/pihole/etc-pihole" \
           "$${ROOT}/pihole/etc-dnsmasq.d" \
@@ -34,7 +34,7 @@ services:
             '  title: Home Dashboard' \
             'sections: []' > "$${DASHY_CONF}"
         fi
-        chown -R 0:0 \
+        chown -R 1000:1000 \
           "$${ROOT}/pihole" \
           "$${ROOT}/portainer" \
           "$${ROOT}/glances" \
@@ -45,9 +45,9 @@ services:
           "$${ROOT}/glances" \
           "$${ROOT}/dashy"
     environment:
-      - DOCKER_VOLUMES_CONTAINER_PATH=${DOCKER_VOLUMES_CONTAINER_PATH:-/host/docker-volume}
+      - DOCKER_VOLUMES_ROOT=${DOCKER_VOLUMES_ROOT:-/host/docker-volume}
     volumes:
-      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}:${DOCKER_VOLUMES_CONTAINER_PATH:-/host/docker-volume}
+      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}:${DOCKER_VOLUMES_ROOT:-/host/docker-volume}
     restart: "no"
 
   pihole:
