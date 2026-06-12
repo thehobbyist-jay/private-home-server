@@ -27,11 +27,8 @@ All persistent data is stored under a single host root: **`/home/docker-volume`*
 Create/update `.env` in the project root:
 
 ```env
-# Host volume root (single location for all service data)
+# Root path for all persistent service data
 DOCKER_VOLUMES_ROOT=/home/docker-volume
-
-# Internal path used by the init container
-DOCKER_VOLUMES_ROOT=/host/docker-volume
 
 # Shared
 TIMEZONE=Asia/Kolkata
@@ -45,6 +42,8 @@ GLANCES_PORT=61208
 # Dashy web port on host
 DASHY_PORT=3001
 ```
+
+`DOCKER_VOLUMES_ROOT` is used by both the init container and service mounts, so keep it as a single absolute path on the host.
 
 ## How volumes are prepared
 
