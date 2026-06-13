@@ -33,8 +33,14 @@ DOCKER_VOLUMES_ROOT=/home/docker-volume
 # Shared
 TIMEZONE=Asia/Kolkata
 
-# Pi-hole web port on host
-PIHOLE_WEB_PORT=8080
+# Bind Pi-hole DNS port 53 on your server LAN/Wi-Fi IP (avoid conflicts with local resolver)
+PIHOLE_BIND_IP=192.168.0.178
+
+# Pi-hole admin web port on host (reachable from LAN/Wi-Fi)
+PIHOLE_WEB_LOCAL_PORT=8080
+
+# Pi-hole admin/API password (leave empty for random password at first start)
+PIHOLE_WEB_PASSWORD=
 
 # Glances web port on host
 GLANCES_PORT=61208
@@ -68,11 +74,21 @@ docker compose down
 
 ## Service URLs
 
-- **Pi-hole Admin (server IP):** `http://<SERVER_IP>:<PIHOLE_WEB_PORT>/admin`
-- **Pi-hole Admin (localhost):** `http://localhost:<PIHOLE_WEB_PORT>/admin`
+- **Pi-hole Admin (server IP):** `http://<SERVER_IP>:<PIHOLE_WEB_LOCAL_PORT>/admin`
+- **Pi-hole Admin (localhost):** `http://localhost:<PIHOLE_WEB_LOCAL_PORT>/admin`
+- **Pi-hole DNS target for clients:** `<SERVER_IP>` on port `53` (TCP/UDP)
 - **Portainer:** `http://<SERVER_IP>:9000` (HTTPS: `https://<SERVER_IP>:9443`)
 - **Glances:** `http://<SERVER_IP>:<GLANCES_PORT>`
 - **Dashy:** `http://<SERVER_IP>:<DASHY_PORT>`
+
+## Pi-hole LAN/Wi-Fi access note
+
+Pi-hole runs with published host ports in this setup:
+
+- Web UI on `PIHOLE_WEB_LOCAL_PORT` (default `8080`)
+- DNS on `PIHOLE_BIND_IP:53` (TCP/UDP)
+
+Set `PIHOLE_BIND_IP` to your current server LAN/Wi-Fi IP, and use that same IP as DNS on your router or client devices.
 
 ## Glances setup
 
