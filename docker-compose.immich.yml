@@ -1,0 +1,93 @@
+# docker-compose.immich.yml
+services:
+  volumes-init-immich:
+    image: alpine:3.20
+    container_name: volumes_init_immich
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        ROOT="$${DOCKER_VOLUMES_ROOT:-/host/docker-volume}"
+        mkdir -p \
+          "$${ROOT}/immich/library" \
+          "$${ROOT}/immich/model-cache" \
+          "$${ROOT}/immich/postgres"
+        chown -R 1000:1000 \
+          "$${ROOT}/immich/library" \
+          "$${ROOT}/immich/model-cache"
+        chown -R 999:999 "$${ROOT}/immich/postgres"
+        chmod -R 755 "$${ROOT}/immich"
+    environment:
+      - DOCKER_VOLUMES_ROOT=${DOCKER_VOLUMES_ROOT:-/host/docker-volume}
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}:${DOCKER_VOLUMES_ROOT:-/host/docker-volume}
+    restart: "no"
+
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    restart: unless-stopped
+    ports:
+      - "${IMMICH_PORT:-2283}:2283"
+    environment:
+      - TZ=${TIMEZONE:-Asia/Kolkata}
+      - DB_HOSTNAME=database
+      - DB_USERNAME=${IMMICH_DB_USERNAME:-postgres}
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - DB_DATABASE_NAME=${IMMICH_DB_DATABASE_NAME:-immich}
+      - REDIS_HOSTNAME=redis
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}/immich/library:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      volumes-init-immich:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    restart: unless-stopped
+    environment:
+      - TZ=${TIMEZONE:-Asia/Kolkata}
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}/immich/model-cache:/cache
+    depends_on:
+      volumes-init-immich:
+        condition: service_completed_successfully
+
+  redis:
+    container_name: immich_redis
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    depends_on:
+      volumes-init-immich:
+        condition: service_completed_successfully
+    healthcheck:
+      test: redis-cli ping || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  database:
+    container_name: immich_postgres
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - POSTGRES_USER=${IMMICH_DB_USERNAME:-postgres}
+      - POSTGRES_DB=${IMMICH_DB_DATABASE_NAME:-immich}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}/immich/postgres:/var/lib/postgresql/data
+    depends_on:
+      volumes-init-immich:
+        condition: service_completed_successfully
+    healthcheck:
+      test: pg_isready --dbname=${IMMICH_DB_DATABASE_NAME:-immich} --username=${IMMICH_DB_USERNAME:-postgres} || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5

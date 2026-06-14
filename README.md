@@ -8,12 +8,19 @@ The project now centers on a lightweight core: **Pi-hole** for network filtering
 
 It’s built as an evolving, practical ops repo: minimal services, clear env-driven configuration, and automatic init steps that create required folders/configs so setup is repeatable across reinstalls and machine changes.
 
-This repository currently runs only:
+This repository currently runs:
 
 - **Pi-hole**
 - **Portainer**
 - **Glances**
 - **Dashy**
+
+For media management with photo/video backup, there is an alternate compose file that also includes:
+
+- **Immich Server**
+- **Immich Machine Learning**
+- **Immich Redis**
+- **Immich Postgres (pgvecto-rs)**
 
 All persistent data is stored under a single host root: **`/home/docker-volume`**.
 
@@ -47,6 +54,17 @@ GLANCES_PORT=61208
 
 # Dashy web port on host
 DASHY_PORT=3001
+
+# Immich image tag
+IMMICH_VERSION=release
+
+# Immich web port on host
+IMMICH_PORT=2283
+
+# Immich database settings
+IMMICH_DB_USERNAME=postgres
+IMMICH_DB_PASSWORD=postgres
+IMMICH_DB_DATABASE_NAME=immich
 ```
 
 `DOCKER_VOLUMES_ROOT` is used by both the init container and service mounts, so keep it as a single absolute path on the host.
@@ -60,16 +78,36 @@ DASHY_PORT=3001
 3. Create a default Glances config at `${DOCKER_VOLUMES_ROOT}/glances/config/glances.conf` if missing.
 4. Create a default Dashy config at `${DOCKER_VOLUMES_ROOT}/dashy/conf.yml` if missing.
 
+When using `docker-compose.immich.yml`, `volumes-init-immich` also prepares:
+
+- `${DOCKER_VOLUMES_ROOT}/immich/library`
+- `${DOCKER_VOLUMES_ROOT}/immich/model-cache`
+- `${DOCKER_VOLUMES_ROOT}/immich/postgres`
+
 ## Start services
 
 ```bash
 docker compose up -d
 ```
 
+## Start services with Immich
+
+Use base + override files together:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.immich.yml up -d
+```
+
 ## Stop services
 
 ```bash
 docker compose down
+```
+
+## Stop services with Immich
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.immich.yml down
 ```
 
 ## Service URLs
@@ -80,6 +118,7 @@ docker compose down
 - **Portainer:** `http://<SERVER_IP>:9000` (HTTPS: `https://<SERVER_IP>:9443`)
 - **Glances:** `http://<SERVER_IP>:<GLANCES_PORT>`
 - **Dashy:** `http://<SERVER_IP>:<DASHY_PORT>`
+- **Immich:** `http://<SERVER_IP>:<IMMICH_PORT>`
 
 ## Pi-hole LAN/Wi-Fi access note
 
