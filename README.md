@@ -1,150 +1,133 @@
-# Home Server (Current Stack)
+# Unified Docker Home Server Architecture
 
-## Backstory
+This repository provides a unified architecture for a containerized home server, smartly isolated into three distinct technology stacks: **Networking**, **Development**, and **Media**.
 
-This repository started as a personal home-lab setup to self-host essential services on a single Linux machine. Earlier versions included a broader set of containers, but over time the stack was intentionally simplified to focus on reliability and day-to-day usefulness.
+To simplify backups and data management, all persistent data is centralized and shared across all stack init containers and bind mounts under one host root directory, configured via the **`DOCKER_VOLUMES_ROOT`** variable.
 
-The project now centers on a lightweight core: **Pi-hole** for network filtering, **Portainer** for container management, **Glances** for system visibility, and **Dashy** as a central dashboard. A key design decision was consolidating persistent storage under one path (`DOCKER_VOLUMES_ROOT`) so migrations, backups, and maintenance are easier.
+## 📑 Table of Contents
 
-It’s built as an evolving, practical ops repo: minimal services, clear env-driven configuration, and automatic init steps that create required folders/configs so setup is repeatable across reinstalls and machine changes.
+- [Prerequisites](#prerequisites)
+- [Architecture & Stacks](#architecture--stacks)
+- [Installation & Setup](#installation--setup)
+- [Service URLs](#service-urls)
+- [Remote Access](#remote-access)
 
-This repository currently runs:
+## ⚙️ Prerequisites
 
-- **Pi-hole**
-- **Portainer**
-- **Glances**
-- **Dashy**
+Before starting, ensure you have the following installed on your host machine:
 
-For media management with photo/video backup, there is an alternate compose file that also includes:
+- **Docker**
+- **Docker Compose plugin** (`docker compose`)
 
-- **Immich Server**
-- **Immich Machine Learning**
-- **Immich Redis**
-- **Immich Postgres (pgvecto-rs)**
+## 🏗️ Architecture & Stacks
 
-All persistent data is stored under a single host root: **`/home/docker-volume`**.
+The environment is split into three separate stacks using Docker Compose files:
 
-## Prerequisites
+1. **Networking Stack** (`docker-compose.yml`): Includes Pi-hole for DNS/ad-blocking and the Twingate Connector for secure remote access.
+2. **Development Stack** (`stacks/development/docker-compose.yml`): Includes Portainer for container management, Glances for system monitoring, Dashy for your homepage, and VS Code (`code-server`) for remote development.
+3. **Media Stack** (`stacks/media/docker-compose.yml`): Includes Immich for photo management, Jellyfin for media streaming, and Nextcloud for file hosting.
 
-- Docker
-- Docker Compose plugin (`docker compose`)
+## 🚀 Installation & Setup
 
-## Environment variables
+### 1. Environment Configuration
 
-Create/update `.env` in the project root:
+Create or update your `.env` file in the project root by copying the provided `.env.example` file. Set `DOCKER_VOLUMES_ROOT` to a single absolute path on your host (the default is `/home/docker-volume`).
 
-```env
-# Root path for all persistent service data
-DOCKER_VOLUMES_ROOT=/home/docker-volume
+### 2. Volume Initialization
 
-# Shared
-TIMEZONE=Asia/Kolkata
+Initialization logic is organized within each stack's directory. When you run the initialization scripts, the following directory structures are automatically created under your `DOCKER_VOLUMES_ROOT`:
 
-# Bind Pi-hole DNS port 53 on your server LAN/Wi-Fi IP (avoid conflicts with local resolver)
-PIHOLE_BIND_IP=192.168.0.178
+- **Networking (`stacks/networking/init.sh`)**: Sets up `/pihole/etc-pihole` and `/pihole/etc-dnsmasq.d`.
+- **Development (`stacks/development/init.sh`)**: Sets up `/portainer/data`, `/glances/config` (including a default `glances.conf`), `/code-server/config`, and `/dashy/conf.yml` (pre-configured with groups for Networking, Development, and Media).
+- **Media (`stacks/media/init.sh`)**: Sets up `/immich/library`, `/immich/model-cache`, `/immich/postgres`, `/jellyfin/config`, `/jellyfin/cache`, `/jellyfin/media`, and `/nextcloud/html`.
 
-# Pi-hole admin web port on host (reachable from LAN/Wi-Fi)
-PIHOLE_WEB_LOCAL_PORT=8080
+### 3. Running the Server
 
-# Pi-hole admin/API password (leave empty for random password at first start)
-PIHOLE_WEB_PASSWORD=
+You can start or stop the entire architecture easily using the included helper script, which coordinates the networking, development, and media stacks together.
 
-# Glances web port on host
-GLANCES_PORT=61208
-
-# Dashy web port on host
-DASHY_PORT=3001
-
-# Immich image tag
-IMMICH_VERSION=release
-
-# Immich web port on host
-IMMICH_PORT=2283
-
-# Immich database settings
-IMMICH_DB_USERNAME=postgres
-IMMICH_DB_PASSWORD=postgres
-IMMICH_DB_DATABASE_NAME=immich
-```
-
-`DOCKER_VOLUMES_ROOT` is used by both the init container and service mounts, so keep it as a single absolute path on the host.
-
-## How volumes are prepared
-
-`volumes-init-core` runs before the main services and will automatically:
-
-1. Create missing directories for Pi-hole, Portainer, Glances, and Dashy under `${DOCKER_VOLUMES_ROOT}`.
-2. Apply ownership and permissions required by the current compose setup.
-3. Create a default Glances config at `${DOCKER_VOLUMES_ROOT}/glances/config/glances.conf` if missing.
-4. Create a default Dashy config at `${DOCKER_VOLUMES_ROOT}/dashy/conf.yml` if missing.
-
-When using `docker-compose.immich.yml`, `volumes-init-immich` also prepares:
-
-- `${DOCKER_VOLUMES_ROOT}/immich/library`
-- `${DOCKER_VOLUMES_ROOT}/immich/model-cache`
-- `${DOCKER_VOLUMES_ROOT}/immich/postgres`
-
-## Start services
+**Start all stacks together:**
 
 ```bash
-docker compose up -d
+# Start the unified environment
+sudo chmod +x ./stack.sh
+sudo ./stack.sh up
 ```
 
-## Start services with Immich
+_(Note: Use the helper script to run all three compose files together with one command.)_
 
-Use base + override files together:
+**Stop all stacks together:**
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.immich.yml up -d
+# Stop the unified environment
+sudo ./stack.sh down
 ```
 
-## Stop services
+## 🌐 Service URLs
 
-```bash
-docker compose down
-```
+Once your stacks are up and running, you can access your services locally via the following URLs (replace `<SERVER_IP>` with your host's IP address):
 
-## Stop services with Immich
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.immich.yml down
-```
-
-## Service URLs
-
-- **Pi-hole Admin (server IP):** `http://<SERVER_IP>:<PIHOLE_WEB_LOCAL_PORT>/admin`
-- **Pi-hole Admin (localhost):** `http://localhost:<PIHOLE_WEB_LOCAL_PORT>/admin`
-- **Pi-hole DNS target for clients:** `<SERVER_IP>` on port `53` (TCP/UDP)
-- **Portainer:** `http://<SERVER_IP>:9000` (HTTPS: `https://<SERVER_IP>:9443`)
+- **Dashy (Dashboard):** `http://<SERVER_IP>:<DASHY_PORT>`
+- **Pi-hole Admin:** `http://<SERVER_IP>:<PIHOLE_WEB_LOCAL_PORT>/admin`
+- **Portainer:** `http://<SERVER_IP>:<PORTAINER_HTTP_PORT>` (or HTTPS via `https://<SERVER_IP>:<PORTAINER_HTTPS_PORT>`)
 - **Glances:** `http://<SERVER_IP>:<GLANCES_PORT>`
-- **Dashy:** `http://<SERVER_IP>:<DASHY_PORT>`
+- **VS Code (code-server):** `http://<SERVER_IP>:<VSCODE_PORT>`
 - **Immich:** `http://<SERVER_IP>:<IMMICH_PORT>`
+- **Jellyfin:** `http://<SERVER_IP>:<JELLYFIN_PORT>`
+- **Nextcloud:** `http://<SERVER_IP>:<NEXTCLOUD_PORT>`
 
-## Pi-hole LAN/Wi-Fi access note
+## 🔒 Remote Access
 
-Pi-hole runs with published host ports in this setup:
+Remote access to your home server is securely handled by the **Twingate Connector**. The Twingate Connector runs strictly as an **outbound-only connection**, meaning it safely tunnels you into your network without exposing any local web UI or open ports to the public internet.
 
-- Web UI on `PIHOLE_WEB_LOCAL_PORT` (default `8080`)
-- DNS on `PIHOLE_BIND_IP:53` (TCP/UDP)
+### Architecture Flow Diagram
 
-Set `PIHOLE_BIND_IP` to your current server LAN/Wi-Fi IP, and use that same IP as DNS on your router or client devices.
+```mermaid
+graph TD
+    %% Access Layer
+    LocalUser((Local Network User))
+    RemoteUser((Remote User)) -->|Twingate Client| TwingateCloud[Twingate Cloud]
 
-## Glances setup
+    subgraph HomeServer [Docker Home Server Architecture]
 
-- Config file path: `${DOCKER_VOLUMES_ROOT}/glances/config/glances.conf`
-- The init service creates a default config automatically on first run.
-- Edit config and restart Glances to apply changes:
+        %% Networking Stack
+        subgraph Networking [Networking Stack]
+            Twingate[Twingate Connector<br/>Outbound Only]
+            Pihole[Pi-hole]
+        end
 
-```bash
-docker compose restart glances
-```
+        %% Development Stack
+        subgraph Development [Development Stack]
+            Dashy[Dashy<br/>Dashboard]
+            Portainer[Portainer]
+            Glances[Glances]
+            VSCode[VS Code<br/>code-server]
+        end
 
-## Dashy setup
+        %% Media Stack
+        subgraph Media [Media Stack]
+            Immich[Immich]
+            Jellyfin[Jellyfin]
+            Nextcloud[Nextcloud]
+        end
 
-- Config file path: `${DOCKER_VOLUMES_ROOT}/dashy/conf.yml`
-- The init service creates a default config automatically on first run.
-- Edit config and restart Dashy to apply changes:
+        %% Persistent Storage
+        Storage[(DOCKER_VOLUMES_ROOT)]
+    end
 
-```bash
-docker compose restart dashy
+    %% Network Connection Flows
+    TwingateCloud -.->|Secure Tunnel| Twingate
+    LocalUser -->|HTTP/HTTPS| Dashy
+    LocalUser -->|DNS| Pihole
+    LocalUser -->|Management| Portainer
+    LocalUser -->|Streaming| Jellyfin
+
+    %% Volume Initialization and Mounts
+    Pihole -->|/etc-pihole<br/>/etc-dnsmasq.d| Storage
+    Portainer -->|/data| Storage
+    Glances -->|/config| Storage
+    Dashy -->|/conf.yml| Storage
+    VSCode -->|/config| Storage
+    Immich -->|/library<br/>/model-cache<br/>/postgres| Storage
+    Jellyfin -->|/config<br/>/cache<br/>/media| Storage
+    Nextcloud -->|/html| Storage
 ```
