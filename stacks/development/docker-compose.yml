@@ -9,7 +9,15 @@ services:
       - /stack/init.sh
     environment:
       - DOCKER_VOLUMES_ROOT=${DOCKER_VOLUMES_ROOT:-/home/docker-volume}
-      - Server_IP=${Server_IP:-127.0.0.1}
+      - SERVER_IP=${SERVER_IP:-127.0.0.1}
+      - PIHOLE_WEB_LOCAL_PORT=${PIHOLE_WEB_LOCAL_PORT:-8080}
+      - DASHY_PORT=${DASHY_PORT:-3001}
+      - PORTAINER_HTTPS_PORT=${PORTAINER_HTTPS_PORT:-9443}
+      - GLANCES_PORT=${GLANCES_PORT:-61208}
+      - VSCODE_PORT=${VSCODE_PORT:-8001}
+      - IMMICH_PORT=${IMMICH_PORT:-2283}
+      - JELLYFIN_PORT=${JELLYFIN_PORT:-8096}
+      - NEXTCLOUD_PORT=${NEXTCLOUD_PORT:-8082}
     volumes:
       - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}:${DOCKER_VOLUMES_ROOT:-/home/docker-volume}
       - ./stacks/development:/stack:ro
