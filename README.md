@@ -31,14 +31,19 @@ The environment is split into three separate stacks using Docker Compose files:
 
 ### 1. Environment Configuration
 
-Create or update your `.env` file in the project root by copying the provided `.env.example` file. Set `DOCKER_VOLUMES_ROOT` to a single absolute path on your host (the default is `/home/docker-volume`).
+Create or update your `.env` file in the project root by copying the provided `.env.example` file.
+
+- Set `DOCKER_VOLUMES_ROOT` to a single absolute path on your host (default: `/home/docker-volume`).
+- Set `SERVER_IP` to your host LAN/Wi-Fi IP. This single variable is used for:
+  - Pi-hole DNS bind on port 53 in the networking stack.
+  - Generated Dashy service URLs in the development stack init config.
 
 ### 2. Volume Initialization
 
 Initialization logic is organized within each stack's directory. When you run the initialization scripts, the following directory structures are automatically created under your `DOCKER_VOLUMES_ROOT`:
 
 - **Networking (`stacks/networking/init.sh`)**: Sets up `/pihole/etc-pihole` and `/pihole/etc-dnsmasq.d`.
-- **Development (`stacks/development/init.sh`)**: Sets up `/portainer/data`, `/glances/config` (including a default `glances.conf`), `/code-server/config`, and `/dashy/conf.yml` (pre-configured with groups for Networking, Development, and Media).
+- **Development (`stacks/development/init.sh`)**: Sets up `/portainer/data`, `/glances/config` (including a default `glances.conf`), `/code-server/config`, and `/dashy/conf.yml` (pre-configured with groups for Networking, Development, and Media). The generated Dashy config uses `SERVER_IP` plus your configured service port variables, and applies a colorful default theme (`aurora-pop`).
 - **Media (`stacks/media/init.sh`)**: Sets up `/immich/library`, `/immich/model-cache`, `/immich/postgres`, `/jellyfin/config`, `/jellyfin/cache`, `/jellyfin/media`, and `/nextcloud/html`.
 
 ### 3. Running the Server
@@ -64,7 +69,7 @@ sudo ./stack.sh down
 
 ## 🌐 Service URLs
 
-Once your stacks are up and running, you can access your services locally via the following URLs (replace `<SERVER_IP>` with your host's IP address):
+Once your stacks are up and running, you can access your services locally via the following URLs (replace `<SERVER_IP>` with the value of `SERVER_IP` in your `.env`):
 
 - **Dashy (Dashboard):** `http://<SERVER_IP>:<DASHY_PORT>`
 - **Pi-hole Admin:** `http://<SERVER_IP>:<PIHOLE_WEB_LOCAL_PORT>/admin`
