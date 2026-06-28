@@ -46,16 +46,16 @@ get_env_raw() {
 set_env_value() {
   local key="$1"
   local value="$2"
-  local escaped_value
+  local quoted_value
   local tmp_file
   tmp_file="$(mktemp)"
-  escaped_value="${value//\'/\'\\\'\'}"
+  quoted_value="'${value//\'/\'\"\'\"\'}'"
 
-  awk -v key="${key}" -v value="${escaped_value}" '
+  awk -v key="${key}" -v value="${quoted_value}" '
     BEGIN { found = 0 }
-    $0 ~ ("^" key "=") { print key "='\''" value "'\''"; found = 1; next }
+    $0 ~ ("^" key "=") { print key "=" value; found = 1; next }
     { print }
-    END { if (!found) print key "='\''" value "'\''" }
+    END { if (!found) print key "=" value }
   ' .env > "${tmp_file}"
 
   mv "${tmp_file}" .env
@@ -122,6 +122,17 @@ ensure_env_secret_default() {
   if [[ -z "${current_value}" ]]; then
     set_env_value "${key}" "${default_value}"
     warn "${key} was empty; using default value."
+  fi
+}
+
+ensure_env_raw_default() {
+  local key="$1"
+  local default_value="$2"
+  local current_value
+  current_value="$(get_env_raw "${key}")"
+  if [[ -z "${current_value}" ]]; then
+    set_env_raw "${key}" "${default_value}"
+    warn "${key} was empty; using default value (${default_value})."
   fi
 }
 
@@ -204,8 +215,19 @@ ensure_env_secret_default "DB_PASSWORD" "immich_db_pass"
 ensure_env_secret_default "MYSQL_ROOT_PASSWORD" "mysql_root_pass"
 ensure_env_secret_default "NEXTCLOUD_DB_PASSWORD" "nextcloud_db_pass"
 
+DOCKER_VOLUMES_ROOT_VALUE="$(get_env_raw DOCKER_VOLUMES_ROOT)"
+DOCKER_VOLUMES_ROOT_VALUE="${DOCKER_VOLUMES_ROOT_VALUE:-/home/docker-volume}"
+BASE_DOMAIN_VALUE="$(get_env_raw BASE_DOMAIN)"
+BASE_DOMAIN_VALUE="${BASE_DOMAIN_VALUE:-home.local}"
+
+ensure_env_raw_default "DB_USERNAME" "postgres"
+ensure_env_raw_default "DB_DATABASE_NAME" "immich"
+ensure_env_raw_default "VSCODE_HOST_PORT" "9002"
+ensure_env_raw_default "NEXTCLOUD_TRUSTED_DOMAINS" "nextcloud.${BASE_DOMAIN_VALUE}"
+
 # --- Step 1.5: Network interface/IP configuration ---
 NETWORK_SETUP_SCRIPT="./scripts/setup/configure-network-env.sh"
+NETWORK_RECONFIGURED=false
 MACVLAN_PARENT="$(get_env_raw MACVLAN_PARENT)"
 
 if [[ ! -f "${NETWORK_SETUP_SCRIPT}" ]]; then
@@ -217,10 +239,12 @@ if [[ -z "${MACVLAN_PARENT}" ]] || ! ip link show "${MACVLAN_PARENT}" >/dev/null
   warn "MACVLAN_PARENT is missing or invalid in .env."
   echo "Running interactive network setup..."
   bash "${NETWORK_SETUP_SCRIPT}"
+  NETWORK_RECONFIGURED=true
 else
   read -rp "Reconfigure network interface/IP settings now? [y/N] " answer
   if [[ "${answer,,}" == "y" ]]; then
     bash "${NETWORK_SETUP_SCRIPT}"
+    NETWORK_RECONFIGURED=true
   fi
 fi
 
@@ -263,17 +287,19 @@ if [[ -n "${MACVLAN_PARENT}" ]] && ip link show "${MACVLAN_PARENT}" >/dev/null 2
 fi
 warn_if_same_server_and_pihole_ip
 
-# Optional DNS base-domain selection
-CURRENT_BASE_DOMAIN="$(get_env_raw BASE_DOMAIN)"
-CURRENT_BASE_DOMAIN="${CURRENT_BASE_DOMAIN:-home.local}"
-read -rp "Change local DNS base domain now? [y/N] " answer
-if [[ "${answer,,}" == "y" ]]; then
-  read -rp "Local DNS base domain [${CURRENT_BASE_DOMAIN}]: " entered_domain
-  if [[ -n "${entered_domain}" ]]; then
-    set_env_raw "BASE_DOMAIN" "${entered_domain}"
-    info "Updated BASE_DOMAIN=${entered_domain}"
-  else
-    info "Keeping BASE_DOMAIN=${CURRENT_BASE_DOMAIN}"
+# Optional DNS base-domain selection (only when network setup was skipped)
+if [[ "${NETWORK_RECONFIGURED}" != "true" ]]; then
+  CURRENT_BASE_DOMAIN="$(get_env_raw BASE_DOMAIN)"
+  CURRENT_BASE_DOMAIN="${CURRENT_BASE_DOMAIN:-home.local}"
+  read -rp "Change local DNS base domain now? [y/N] " answer
+  if [[ "${answer,,}" == "y" ]]; then
+    read -rp "Local DNS base domain [${CURRENT_BASE_DOMAIN}]: " entered_domain
+    if [[ -n "${entered_domain}" ]]; then
+      set_env_raw "BASE_DOMAIN" "${entered_domain}"
+      info "Updated BASE_DOMAIN=${entered_domain}"
+    else
+      info "Keeping BASE_DOMAIN=${CURRENT_BASE_DOMAIN}"
+    fi
   fi
 fi
 

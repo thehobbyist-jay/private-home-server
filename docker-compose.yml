@@ -20,8 +20,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ${VSCODE_WORKSPACE}/projects:/home/coder/projects
-      - ${VSCODE_WORKSPACE}/config:/home/coder/.local/share/code-server
+      - ${DOCKER_VOLUMES_ROOT}/vscode/projects:/home/coder/projects
+      - ${DOCKER_VOLUMES_ROOT}/vscode/config:/home/coder/.local/share/code-server
       - ./:/home/coder/projects/linux-server
     ports:
       - "${VSCODE_HOST_PORT:-9002}:9002"
@@ -197,7 +197,7 @@ services:
       NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS}
     volumes:
       - ${DOCKER_VOLUMES_ROOT}/nextcloud/html:/var/www/html
-      - ${NEXTCLOUD_DATA_DIR:-/home/docker-volumes/nextcloud/data}:/var/www/html/data
+      - ${DOCKER_VOLUMES_ROOT}/nextcloud/data:/var/www/html/data
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -216,7 +216,7 @@ services:
     volumes:
       - ${DOCKER_VOLUMES_ROOT}/jellyfin/config:/config
       - ${DOCKER_VOLUMES_ROOT}/jellyfin/cache:/cache
-      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/media
+      - ${DOCKER_VOLUMES_ROOT}/jellyfin/media:/media
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
     restart: unless-stopped
@@ -234,7 +234,7 @@ services:
       WEBUI_PORT: 9001
     volumes:
       - ${DOCKER_VOLUMES_ROOT}/qbittorrent/config:/config
-      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/downloads
+      - ${DOCKER_VOLUMES_ROOT}/qbittorrent/downloads:/downloads
     restart: unless-stopped
     logging: *default-logging
     networks:
@@ -245,12 +245,12 @@ services:
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     volumes:
       # THE HDD: For the heavy original photos
-      - ${UPLOAD_LOCATION}/library:/data/library
-      - ${UPLOAD_LOCATION}/upload:/data/upload
+      - ${DOCKER_VOLUMES_ROOT}/immich/library:/data/library
+      - ${DOCKER_VOLUMES_ROOT}/immich/upload:/data/upload
 
       # THE SSD: For high-speed app data
       # - ${IMMICH_THUMBS_LOCATION}:/data/thumbs
-      - ${UPLOAD_LOCATION}:/data
+      - ${DOCKER_VOLUMES_ROOT}/immich:/data
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
@@ -279,7 +279,7 @@ services:
       file: hwaccel.ml.yml
       service: cpu # set to one of [cpu, armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
     volumes:
-      - ${IMMICH_MODEL_CACHE}:/cache
+      - ${DOCKER_VOLUMES_ROOT}/immich/model-cache:/cache
     env_file:
       - .env
     restart: unless-stopped
@@ -311,8 +311,7 @@ services:
       # Uncomment the DB_STORAGE_TYPE: 'HDD' var if your database isn't stored on SSDs
       DB_STORAGE_TYPE: "HDD"
     volumes:
-      # Do not edit the next line. If you want to change the database storage location on your system, edit the value of DB_DATA_LOCATION in the .env file
-      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+      - ${DOCKER_VOLUMES_ROOT}/immich/postgres:/var/lib/postgresql/data
     shm_size: 128mb
     restart: unless-stopped
     logging: *default-logging
@@ -330,7 +329,7 @@ services:
       - TZ=${TIMEZONE}
     user: 1000:1000
     volumes:
-      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/srv
+      - ${DOCKER_VOLUMES_ROOT}/jellyfin/media:/srv
       - ${DOCKER_VOLUMES_ROOT}/filebrowser:/database
       - ${DOCKER_VOLUMES_ROOT}/filebrowser/config:/config
       - ${DOCKER_VOLUMES_ROOT}/orcaslicer/exports:/srv/3d-prints

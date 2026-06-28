@@ -446,32 +446,32 @@ sudo docker exec -it pihole pihole setpassword
 ### VSCode Git ownership fix
 
 ```bash
-sudo chown -R 1000:1000 "${VSCODE_WORKSPACE}/projects/.git"
+sudo chown -R 1000:1000 "${DOCKER_VOLUMES_ROOT}/vscode/projects/.git"
 ```
 
 ### VSCode persistence
 
-VSCode can persist its workspace, settings, SSH keys, and extensions via the `${VSCODE_WORKSPACE}` bind mount.
+VSCode can persist its workspace, settings, SSH keys, and extensions via the `${DOCKER_VOLUMES_ROOT}/vscode` bind mount.
 
 **Volume mapping:**
 
 ```yaml
-${VSCODE_WORKSPACE}:/home/coder
+${DOCKER_VOLUMES_ROOT}/vscode:/home/coder
 ```
 
 If you prefer the split layout used by the current Compose file:
 
 ```yaml
-${VSCODE_WORKSPACE}/projects:/home/coder/projects
-${VSCODE_WORKSPACE}/config:/home/coder/.local/share/code-server
+${DOCKER_VOLUMES_ROOT}/vscode/projects:/home/coder/projects
+${DOCKER_VOLUMES_ROOT}/vscode/config:/home/coder/.local/share/code-server
 ```
 
 **One-time setup example:**
 
 ```bash
-sudo mkdir -p "${VSCODE_WORKSPACE}/projects" "${VSCODE_WORKSPACE}/config"
-sudo chown -R 1000:1000 "${VSCODE_WORKSPACE}"
-chmod 755 "${VSCODE_WORKSPACE}"
+sudo mkdir -p "${DOCKER_VOLUMES_ROOT}/vscode/projects" "${DOCKER_VOLUMES_ROOT}/vscode/config"
+sudo chown -R 1000:1000 "${DOCKER_VOLUMES_ROOT}/vscode"
+chmod 755 "${DOCKER_VOLUMES_ROOT}/vscode"
 ```
 
 ### Generic Git configuration
@@ -484,13 +484,13 @@ git config --global user.email "you@example.com"
 ### Optional SSH key setup for VSCode
 
 ```bash
-sudo mkdir -p "${VSCODE_WORKSPACE}/.ssh"
-sudo cp ~/.ssh/id_rsa "${VSCODE_WORKSPACE}/.ssh/"
-sudo cp ~/.ssh/id_rsa.pub "${VSCODE_WORKSPACE}/.ssh/"
-sudo chmod 700 "${VSCODE_WORKSPACE}/.ssh"
-sudo chmod 600 "${VSCODE_WORKSPACE}/.ssh/id_rsa"
-sudo chmod 644 "${VSCODE_WORKSPACE}/.ssh/id_rsa.pub"
-sudo chown -R 1000:1000 "${VSCODE_WORKSPACE}/.ssh"
+sudo mkdir -p "${DOCKER_VOLUMES_ROOT}/vscode/.ssh"
+sudo cp ~/.ssh/id_rsa "${DOCKER_VOLUMES_ROOT}/vscode/.ssh/"
+sudo cp ~/.ssh/id_rsa.pub "${DOCKER_VOLUMES_ROOT}/vscode/.ssh/"
+sudo chmod 700 "${DOCKER_VOLUMES_ROOT}/vscode/.ssh"
+sudo chmod 600 "${DOCKER_VOLUMES_ROOT}/vscode/.ssh/id_rsa"
+sudo chmod 644 "${DOCKER_VOLUMES_ROOT}/vscode/.ssh/id_rsa.pub"
+sudo chown -R 1000:1000 "${DOCKER_VOLUMES_ROOT}/vscode/.ssh"
 ```
 
 ### Storage troubleshooting
