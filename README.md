@@ -4,6 +4,10 @@
 
 A Docker Compose-based home server stack for self-hosting media, files, photos, automation, DNS, and remote access behind a local HTTPS reverse proxy. This repository is designed to be reusable: network values, storage paths, domains, and secrets are configurable through `.env`.
 
+## Architecture
+
+![Home Server Architecture](docs/architecture.svg)
+
 ## Features
 
 - Split-stack design: core services and remote-access services can be operated independently
