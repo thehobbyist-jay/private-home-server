@@ -114,6 +114,17 @@ prompt_secret_with_default() {
   fi
 }
 
+ensure_env_secret_default() {
+  local key="$1"
+  local default_value="$2"
+  local current_value
+  current_value="$(get_env_raw "${key}")"
+  if [[ -z "${current_value}" ]]; then
+    set_env_value "${key}" "${default_value}"
+    warn "${key} was empty; using default value."
+  fi
+}
+
 # --- Step 0: Check prerequisites ---
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Home Server — Installation"
@@ -148,16 +159,20 @@ echo ""
 if [[ ! -f .env ]]; then
   warn ".env file not found — creating from .env.example"
   cp .env.example .env
+  DEFAULT_VSCODE_PASSWORD="$(get_env_raw VSCODE_PASSWORD)"; DEFAULT_VSCODE_PASSWORD="${DEFAULT_VSCODE_PASSWORD:-homelab123}"
+  DEFAULT_DB_PASSWORD="$(get_env_raw DB_PASSWORD)"; DEFAULT_DB_PASSWORD="${DEFAULT_DB_PASSWORD:-immich_db_pass}"
+  DEFAULT_MYSQL_ROOT_PASSWORD="$(get_env_raw MYSQL_ROOT_PASSWORD)"; DEFAULT_MYSQL_ROOT_PASSWORD="${DEFAULT_MYSQL_ROOT_PASSWORD:-mysql_root_pass}"
+  DEFAULT_NEXTCLOUD_DB_PASSWORD="$(get_env_raw NEXTCLOUD_DB_PASSWORD)"; DEFAULT_NEXTCLOUD_DB_PASSWORD="${DEFAULT_NEXTCLOUD_DB_PASSWORD:-nextcloud_db_pass}"
   echo ""
   warn "A .env file has been created with default passwords."
   echo "  You can set your own passwords now, or continue with defaults."
   echo ""
   read -rp "Set custom passwords now? [Y/n] " answer
   if [[ "${answer,,}" != "n" ]]; then
-    VSCODE_PASSWORD="$(prompt_secret_with_default "VSCode password" "homelab123")"
-    DB_PASSWORD="$(prompt_secret_with_default "Immich DB password" "immich_db_pass")"
-    MYSQL_ROOT_PASSWORD="$(prompt_secret_with_default "MySQL root password" "mysql_root_pass")"
-    NEXTCLOUD_DB_PASSWORD="$(prompt_secret_with_default "Nextcloud DB password" "nextcloud_db_pass")"
+    VSCODE_PASSWORD="$(prompt_secret_with_default "VSCode password" "${DEFAULT_VSCODE_PASSWORD}")"
+    DB_PASSWORD="$(prompt_secret_with_default "Immich DB password" "${DEFAULT_DB_PASSWORD}")"
+    MYSQL_ROOT_PASSWORD="$(prompt_secret_with_default "MySQL root password" "${DEFAULT_MYSQL_ROOT_PASSWORD}")"
+    NEXTCLOUD_DB_PASSWORD="$(prompt_secret_with_default "Nextcloud DB password" "${DEFAULT_NEXTCLOUD_DB_PASSWORD}")"
 
     set_env_value "VSCODE_PASSWORD" "${VSCODE_PASSWORD}"
     set_env_value "DB_PASSWORD" "${DB_PASSWORD}"
@@ -182,6 +197,12 @@ else
   fi
   info ".env file found"
 fi
+
+# Ensure required secrets always have usable defaults when user skips custom values.
+ensure_env_secret_default "VSCODE_PASSWORD" "homelab123"
+ensure_env_secret_default "DB_PASSWORD" "immich_db_pass"
+ensure_env_secret_default "MYSQL_ROOT_PASSWORD" "mysql_root_pass"
+ensure_env_secret_default "NEXTCLOUD_DB_PASSWORD" "nextcloud_db_pass"
 
 # --- Step 1.5: Network interface/IP configuration ---
 NETWORK_SETUP_SCRIPT="./scripts/setup/configure-network-env.sh"
@@ -241,6 +262,20 @@ if [[ -n "${MACVLAN_PARENT}" ]] && ip link show "${MACVLAN_PARENT}" >/dev/null 2
   fi
 fi
 warn_if_same_server_and_pihole_ip
+
+# Optional DNS base-domain selection
+CURRENT_BASE_DOMAIN="$(get_env_raw BASE_DOMAIN)"
+CURRENT_BASE_DOMAIN="${CURRENT_BASE_DOMAIN:-home.local}"
+read -rp "Change local DNS base domain now? [y/N] " answer
+if [[ "${answer,,}" == "y" ]]; then
+  read -rp "Local DNS base domain [${CURRENT_BASE_DOMAIN}]: " entered_domain
+  if [[ -n "${entered_domain}" ]]; then
+    set_env_raw "BASE_DOMAIN" "${entered_domain}"
+    info "Updated BASE_DOMAIN=${entered_domain}"
+  else
+    info "Keeping BASE_DOMAIN=${CURRENT_BASE_DOMAIN}"
+  fi
+fi
 
 # --- Step 2: Prepare host directories ---
 echo ""

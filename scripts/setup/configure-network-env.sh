@@ -125,7 +125,7 @@ echo ""
 
 SERVER_IP="${DEFAULT_SERVER_IP}"
 PIHOLE_IP="$(prompt_with_default "Pi-hole IP" "${DEFAULT_PIHOLE_IP}")"
-BASE_DOMAIN="${DEFAULT_DOMAIN}"
+BASE_DOMAIN="$(prompt_with_default "Local DNS base domain" "${DEFAULT_DOMAIN}")"
 MACVLAN_SUBNET="${DEFAULT_SUBNET}"
 MACVLAN_GATEWAY="${DEFAULT_GATEWAY}"
 
