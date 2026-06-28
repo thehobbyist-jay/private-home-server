@@ -53,13 +53,28 @@ vscode/
 
 immich/library/
 immich/postgres/
-testing_tasty/tastyigniter/db/aria_log_control
-testing_tasty/tastyigniter/db/aria_log.00000001
-testing_tasty/tastyigniter/db/ib_buffer_pool
-testing_tasty/tastyigniter/db/ib_logfile0
-testing_tasty/tastyigniter/db/ibdata1
-testing_tasty/tastyigniter/db/ibtmp1
-testing_tasty/tastyigniter/db/multi-master.info
-testing_tasty/tastyigniter/db/mysql_upgrade_info
+
+# -------------------------------------------------------------------
+# Node.js (husky / secret scanning)
+# -------------------------------------------------------------------
+node_modules/
 
 .env
+
+# -------------------------------------------------------------------
+# Local TLS certs (Nginx HTTPS)
+# -------------------------------------------------------------------
+nginx/certs/*
+!nginx/certs/.gitkeep
+nginx/ca/*
+!nginx/ca/.gitkeep
+# Local credential files
+.env
+.git-credentials
+
+# -------------------------------------------------------------------
+# Personal / sensitive files (never commit)
+# -------------------------------------------------------------------
+.bash_history
+.gitconfig
+.ssh/

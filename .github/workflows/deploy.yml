@@ -1,0 +1,105 @@
+name: Deploy Docker Compose
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.access.yml'
+      - 'hwaccel.ml.yml'
+      - 'nginx/**'
+      - 'dashy/**'
+      - 'pihole/**'
+      - '.env.example'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy updated compose
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Validate deploy inputs
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_USER:-}" ] || [ -z "${DEPLOY_PATH:-}" ]; then
+            echo "Required deploy secrets are missing: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH"
+            exit 1
+          fi
+
+      - name: Setup SSH config
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          cat > ~/.ssh/config <<EOF
+          Host ${DEPLOY_HOST}
+            HostName ${DEPLOY_HOST}
+            User ${DEPLOY_USER}
+            Port ${SSH_PORT:-22}
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile ~/.ssh/known_hosts
+            IdentitiesOnly yes
+          EOF
+                    chmod 600 ~/.ssh/config
+                    ssh-keyscan -p "${SSH_PORT:-22}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+                    chmod 600 ~/.ssh/known_hosts
+
+      - name: Validate Docker Compose configuration
+        run: |
+          docker compose --env-file .env.example -f docker-compose.access.yml config >/dev/null
+          docker compose --env-file .env.example -f docker-compose.yml config >/dev/null
+
+      - name: Sync compose and config files
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude 'nginx/certs' \
+            --exclude 'nginx/ca' \
+            --exclude 'node_modules' \
+            docker-compose.yml docker-compose.access.yml hwaccel.ml.yml \
+            nginx/conf.d nginx/snippets \
+            dashy/conf.yaml pihole/dnsmasq.d \
+            scripts install.sh .env.example \
+            "${DEPLOY_HOST}:${DEPLOY_PATH}"
+
+      - name: Prepare remote bind mount paths
+        run: |
+          set -euo pipefail
+          ssh "${DEPLOY_HOST}" <<EOF
+          cd "${DEPLOY_PATH}"
+          sudo bash ./scripts/setup/prepare-service-paths.sh
+          EOF
+
+      - name: Deploy on target server
+        run: |
+          set -euo pipefail
+          ssh "${DEPLOY_HOST}" <<EOF
+          cd "${DEPLOY_PATH}"
+          if [ ! -f nginx/ca/home-local-ca.key ] || [ ! -f nginx/ca/home-local-ca.crt ]; then
+            bash ./scripts/tls/create-local-ca.sh
+          fi
+          bash ./scripts/tls/renew-home-local-cert.sh
+          docker compose pull
+          docker compose -f docker-compose.access.yml up -d
+          docker compose -f docker-compose.yml up -d
+          EOF

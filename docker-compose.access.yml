@@ -1,0 +1,20 @@
+name: home-access
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  twingate-connector:
+    image: ${TWINGATE_IMAGE:-twingate/connector:1}
+    container_name: twingate-connector
+    network_mode: "host" # Required so the connector can reach LAN services directly.
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TWINGATE_NETWORK: ${TWINGATE_NETWORK}
+      TWINGATE_ACCESS_TOKEN: ${TWINGATE_ACCESS_TOKEN}
+      TWINGATE_REFRESH_TOKEN: ${TWINGATE_REFRESH_TOKEN}
+      TWINGATE_LABEL_HOSTNAME: ${TWINGATE_LABEL_HOSTNAME}
+      TWINGATE_LABEL_DEPLOYED_BY: "docker"
+      TZ: ${TIMEZONE}

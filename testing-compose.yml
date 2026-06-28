@@ -1,0 +1,44 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  orcaslicer:
+    image: lscr.io/linuxserver/orcaslicer:latest
+    container_name: orcaslicer
+    restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/orcaslicer/config:/config
+      - ${DOCKER_VOLUMES_ROOT}/orcaslicer/exports/downloads:/config/Downloads
+      - ${DOCKER_VOLUMES_ROOT}/orcaslicer/exports/sliced:/config/.config/OrcaSlicer/cache
+    networks:
+      - proxy_net
+
+  # motioneye:
+  #   container_name: motioneye
+  #   image: ccrisan/motioneye:master-amd64
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9009:8765"
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${DOCKER_VOLUMES_ROOT}/motioneye/etc:/etc/motioneye
+  #     - ${DOCKER_VOLUMES_ROOT}/motioneye/var:/var/lib/motioneye
+  #     - /mnt/mediahdd/motioneye:/media/motioneye
+  #   devices:
+  #     - /dev/video0:/dev/video0
+  #     - /dev/video1:/dev/video1
+
+networks:
+  proxy_net:
+    external: true

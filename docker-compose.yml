@@ -1,53 +1,360 @@
 # docker-compose.yml
-name: private-home-networking
+name: home-server
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 services:
-  volumes-init-networking:
-    image: alpine:3.20
-    container_name: volumes_init_networking
-    command:
-      - /bin/sh
-      - -ec
-      - /stack/init.sh
+  vscode:
+    image: ${VSCODE_IMAGE:-ghcr.io/coder/code-server:latest}
+    container_name: vscode
+    restart: unless-stopped
+    logging: *default-logging
     environment:
-      - DOCKER_VOLUMES_ROOT=${DOCKER_VOLUMES_ROOT:-/home/docker-volume}
+      - PASSWORD=${VSCODE_PASSWORD}
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TIMEZONE}
+      - PORT=9002
+    env_file:
+      - .env
     volumes:
-      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}:${DOCKER_VOLUMES_ROOT:-/home/docker-volume}
-      - ./stacks/networking:/stack:ro
-    restart: "no"
+      - ${VSCODE_WORKSPACE}/projects:/home/coder/projects
+      - ${VSCODE_WORKSPACE}/config:/home/coder/.local/share/code-server
+      - ./:/home/coder/projects/linux-server
+    ports:
+      - "${VSCODE_HOST_PORT:-9002}:9002"
+    networks:
+      - proxy_net
+
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:1.27-alpine}
+    container_name: nginx-proxy
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - dashy
+      - vscode
+      - portainer
+      - glances
+      - nextcloud
+      - jellyfin
+      - qbittorrent
+      - immich-server
+      - filebrowser
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/ca:/etc/nginx/ca:ro
+    networks:
+      - proxy_net
 
   pihole:
     container_name: pihole
-    image: pihole/pihole:latest
+    image: ${PIHOLE_IMAGE:-pihole/pihole:latest}
     hostname: pihole
+    networks:
+      macvlan_net:
+        ipv4_address: ${PIHOLE_IP}
+      monitor_network: {}
     environment:
-      TZ: "${TIMEZONE:-Asia/Kolkata}"
-      FTLCONF_webserver_api_password: "${PIHOLE_WEB_PASSWORD:-}"
-      FTLCONF_dns_listeningMode: "ALL"
+      TZ: "${TIMEZONE}"
+      # Per Pi-hole docs: empty string explicitly disables web password
+      FTLCONF_webserver_api_password: ''
+      DNSMASQ_LISTENING: all
       FTLCONF_misc_etc_dnsmasq_d: "true"
-    ports:
-      - "${PIHOLE_WEB_LOCAL_PORT:-8080}:80/tcp"
-      - "${PIHOLE_BIND_IP:-127.0.0.1}:53:53/tcp"
-      - "${PIHOLE_BIND_IP:-127.0.0.1}:53:53/udp"
-    depends_on:
-      volumes-init-networking:
-        condition: service_completed_successfully
     volumes:
-      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}/pihole/etc-pihole:/etc/pihole
-      - ${DOCKER_VOLUMES_ROOT:-/home/docker-volume}/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+      - ${DOCKER_VOLUMES_ROOT}/pihole/etc-pihole:/etc/pihole
+      - ${DOCKER_VOLUMES_ROOT}/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+      - ./pihole/dnsmasq.d/05-home-local.conf:/etc/dnsmasq.d/05-home-local.conf:ro
     restart: unless-stopped
+    logging: *default-logging
 
-  twingate-connector:
-    container_name: twingate_connector
-    image: twingate/connector:latest
+  dashy:
+    image: ${DASHY_IMAGE:-lissy93/dashy}
+    container_name: dashy
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/dashy:/app/user-data
+      - ./dashy/conf.yaml:/app/user-data/conf.yml
     restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - proxy_net
+
+  dockerproxy:
+    container_name: dockerproxy
+    image: ${DOCKERPROXY_IMAGE:-tecnativa/docker-socket-proxy:0.3.0}
+    restart: unless-stopped
+    logging: *default-logging
     environment:
-      - TWINGATE_NETWORK=${TWINGATE_NETWORK:-}
-      - TWINGATE_ACCESS_TOKEN=${TWINGATE_ACCESS_TOKEN:-}
-      - TWINGATE_REFRESH_TOKEN=${TWINGATE_REFRESH_TOKEN:-}
-      - TWINGATE_LABEL_HOSTNAME=${TWINGATE_LABEL_HOSTNAME:-private-home-server}
+      AUTH: 1
+      BUILD: 1
+      COMMIT: 1
+      CONFIGS: 1
+      CONTAINERS: 1
+      DISTRIBUTION: 1
+      EVENTS: 1
+      EXEC: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      NODES: 1
+      PING: 1
+      PLUGINS: 1
+      SERVICES: 1
+      SECRETS: 1
+      SESSION: 1
+      SWARM: 1
+      SYSTEM: 1
+      TASKS: 1
+      VERSION: 1
+      VOLUMES: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - monitor_network
 
+  portainer:
+    container_name: portainer
+    image: ${PORTAINER_IMAGE:-portainer/portainer-ce:lts}
+    command: -H tcp://dockerproxy:2375
+    depends_on:
+      - dockerproxy
+    environment:
+      - TZ=${TIMEZONE}
+    ports:
+      - "${PORTAINER_HOST_PORT:-9000}:9000"
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/portainer/data:/data
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - monitor_network
+      - proxy_net
+
+  glances:
+    container_name: glances
+    image: ${GLANCES_IMAGE:-nicolargo/glances:latest-full}
+    restart: unless-stopped
+    cpu_shares: 512
+    mem_limit: 512M
+    logging: *default-logging
+    depends_on:
+      - dockerproxy
+    volumes:
+      - /etc/os-release:/etc/os-release:ro
+      - ${DOCKER_VOLUMES_ROOT}/glances/config:/etc/glances:ro # Made read-only
+    environment:
+      # -t 5 increases refresh to 5s, significantly lowering CPU usage
+      - "GLANCES_OPT=-w -t 5 -C /etc/glances/glances.conf"
+      - DOCKER_HOST=tcp://dockerproxy:2375
+      - TZ=${TIMEZONE}
+    networks:
+      - monitor_network
+      - proxy_net
+
+  nextcloud-db:
+    image: ${MYSQL_IMAGE:-mysql:8.0}
+    container_name: nextcloud-db
+    mem_limit: 1G
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextclouduser
+      TZ: ${TIMEZONE}
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/nextcloud/db:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      retries: 5
+      interval: 10s
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - nextcloud_net
+
+  # Nextcloud
+  nextcloud:
+    image: ${NEXTCLOUD_IMAGE:-nextcloud}
+    container_name: nextcloud
+    environment:
+      DB_HOST: nextcloud-db
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextclouduser
+      TZ: ${TIMEZONE}
+      OVERWRITEHOST: nextcloud.${BASE_DOMAIN:-home.local}
+      OVERWRITEPROTOCOL: https
+      OVERWRITECLIURL: https://nextcloud.${BASE_DOMAIN:-home.local}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS}
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/nextcloud/html:/var/www/html
+      - ${NEXTCLOUD_DATA_DIR:-/home/docker-volumes/nextcloud/data}:/var/www/html/data
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - nextcloud_net
+      - proxy_net
+
+  jellyfin:
+    container_name: jellyfin
+    image: ${JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
+    user: 1000:1000
+    environment:
+      TZ: "${TIMEZONE}"
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/jellyfin/config:/config
+      - ${DOCKER_VOLUMES_ROOT}/jellyfin/cache:/cache
+      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/media
+    ports:
+      - "${JELLYFIN_PORT:-8096}:8096"
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - proxy_net
+
+  qbittorrent:
+    container_name: qbittorrent
+    image: ${QBITTORRENT_IMAGE:-linuxserver/qbittorrent:latest}
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: ${TIMEZONE}
+      WEBUI_PORT: 9001
+    volumes:
+      - ${DOCKER_VOLUMES_ROOT}/qbittorrent/config:/config
+      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/downloads
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - proxy_net
+
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      # THE HDD: For the heavy original photos
+      - ${UPLOAD_LOCATION}/library:/data/library
+      - ${UPLOAD_LOCATION}/upload:/data/upload
+
+      # THE SSD: For high-speed app data
+      # - ${IMMICH_THUMBS_LOCATION}:/data/thumbs
+      - ${UPLOAD_LOCATION}:/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - database
+    environment:
+      - PUID=1000 # Your host user ID
+      - PGID=1000 # Your host group ID
+      - TZ=${TIMEZONE}
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      disable: false
+    networks:
+      - immich_net
+      - monitor_network
+      - proxy_net
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    mem_limit: 4G
+    extends:
+      # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
+      file: hwaccel.ml.yml
+      service: cpu # set to one of [cpu, armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    volumes:
+      - ${IMMICH_MODEL_CACHE}:/cache
+    env_file:
+      - .env
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      disable: false
+    networks:
+      - immich_net
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - immich_net
+
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    mem_limit: 2G
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      # Uncomment the DB_STORAGE_TYPE: 'HDD' var if your database isn't stored on SSDs
+      DB_STORAGE_TYPE: "HDD"
+    volumes:
+      # Do not edit the next line. If you want to change the database storage location on your system, edit the value of DB_DATA_LOCATION in the .env file
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+    shm_size: 128mb
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      disable: false
+    networks:
+      - immich_net
+
+  filebrowser:
+    image: ${FILEBROWSER_IMAGE:-filebrowser/filebrowser}
+    container_name: filebrowser
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - TZ=${TIMEZONE}
+    user: 1000:1000
+    volumes:
+      - ${JELLYFIN_MEDIA_DIR:-/home/docker-volumes/jellyfin/media}:/srv
+      - ${DOCKER_VOLUMES_ROOT}/filebrowser:/database
+      - ${DOCKER_VOLUMES_ROOT}/filebrowser/config:/config
+      - ${DOCKER_VOLUMES_ROOT}/orcaslicer/exports:/srv/3d-prints
+    networks:
+      - proxy_net
+
 networks:
+  macvlan_net:
+    driver: macvlan
+    driver_opts:
+      parent: ${MACVLAN_PARENT}
+    ipam:
+      config:
+        - subnet: ${MACVLAN_SUBNET}
+          gateway: ${MACVLAN_GATEWAY}
+
   monitor_network:
+    driver: bridge
+
+  immich_net:
+    driver: bridge
+
+  nextcloud_net:
+    driver: bridge
+
+  proxy_net:
     driver: bridge
