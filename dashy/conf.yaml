@@ -1,0 +1,105 @@
+appConfig:
+  theme: colorful
+  layout: vertical
+  iconSize: small
+  language: en
+  statusCheck: true
+pageInfo:
+  title: The Hobbyist Lab
+  description: Self-hosted Services Dashboard
+sections:
+  - name: Development
+    items:
+      - &ref_0
+        title: VSCode
+        description: Code Server
+        url: https://vscode.homepi.local
+        icon: hl-code
+        id: 0_1155_vscode
+    filteredItems:
+      - *ref_0
+  - name: Media
+    items:
+      - &ref_3
+        title: Jellyfin
+        description: Media Server
+        url: https://jellyfin.homepi.local
+        icon: hl-jellyfin
+        id: 0_480_jellyfin
+      - &ref_4
+        title: qBittorrent
+        description: Torrent Client
+        url: https://qbittorrent.homepi.local
+        icon: hl-qbittorrent
+        id: 1_480_qbittorrent
+      - &ref_5
+        title: Immich
+        description: Photo Management
+        url: https://immich.homepi.local
+        icon: hl-immich
+        id: 2_480_immich
+    filteredItems:
+      - *ref_3
+      - *ref_4
+      - *ref_5
+  - name: Cloud
+    items:
+      - &ref_6
+        title: Nextcloud
+        description: Private Cloud
+        url: https://nextcloud.homepi.local
+        icon: hl-nextcloud
+        id: 0_503_nextcloud
+      - &ref_7
+        title: FileBrowser
+        description: File Manager
+        url: https://files.homepi.local
+        icon: hl-filebrowser
+        id: 1_503_filebrowser
+    filteredItems:
+      - *ref_6
+      - *ref_7
+  - name: Network
+    items:
+      - &ref_8
+        title: Pi-hole
+        description: DNS Ad Blocking
+        url: http://10.10.2.103/admin
+        icon: hl-pi-hole
+        id: 0_746_pihole
+      - &ref_9
+        title: Portainer
+        description: Docker Management
+        url: https://portainer.homepi.local
+        icon: hl-portainer
+        id: 1_746_portainer
+      - &ref_10
+        title: Glances
+        description: System Monitoring
+        url: https://glances.homepi.local
+        icon: hl-glances
+        id: 2_746_glances
+      - &ref_12
+        title: TPLink
+        description: Router
+        icon: >-
+          https://e7.pngegg.com/pngimages/683/721/png-clipart-logo-tp-link-netherlands-b-v-brand-product-design-text-logo.png
+        url: http://10.10.2.1
+        target: newtab
+        id: 4_746_tplink
+    filteredItems:
+      - *ref_8
+      - *ref_9
+      - *ref_10
+      - *ref_12
+  - name: Utilities
+    items:
+      - &ref_14
+        title: Install CA Cert
+        description: Trust local HTTPS certificate
+        url: http://homepi.local/ca.crt
+        icon: fas fa-certificate
+        target: newtab
+        id: 0_956_cacert
+    filteredItems:
+      - *ref_14
