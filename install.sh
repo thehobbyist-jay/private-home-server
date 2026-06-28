@@ -136,6 +136,29 @@ ensure_env_raw_default() {
   fi
 }
 
+run_compose_up() {
+  local compose_file="$1"
+  shift
+  local targets=("$@")
+
+  if ! docker compose --ansi never -f "${compose_file}" up -d "${targets[@]}"; then
+    error "Compose up failed for ${compose_file}${targets:+ (targets: ${targets[*]})}"
+    echo ""
+    echo "Current compose status:"
+    docker compose --ansi never -f "${compose_file}" ps || true
+    echo ""
+    echo "Recent logs from failed/stopped services:"
+    local failed_services
+    failed_services="$(docker compose --ansi never -f "${compose_file}" ps --status exited --services || true)"
+    if [[ -n "${failed_services}" ]]; then
+      docker compose --ansi never -f "${compose_file}" logs --tail=120 ${failed_services} || true
+    else
+      docker compose --ansi never -f "${compose_file}" logs --tail=120 || true
+    fi
+    return 1
+  fi
+}
+
 # --- Step 0: Check prerequisites ---
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Home Server — Installation"
@@ -331,14 +354,15 @@ info "Leaf certificate ready"
 # --- Step 4: Start stacks ---
 echo ""
 echo "🐳 Starting Docker Compose stacks..."
+echo "  (This can take a few minutes on first run while images are pulled.)"
 
 echo "  → Access stack (Twingate)..."
-docker compose -f docker-compose.access.yml up -d 2>&1 | tail -3
+run_compose_up "docker-compose.access.yml"
 info "Access stack started"
 
 echo "  → Main stack (all services)..."
-docker compose -f docker-compose.yml up -d vscode 2>&1 | tail -3
-docker compose -f docker-compose.yml up -d 2>&1 | tail -3
+run_compose_up "docker-compose.yml" "vscode"
+run_compose_up "docker-compose.yml"
 info "Main stack started"
 
 # Reload Pi-hole DNS to ensure generated local records are active immediately
